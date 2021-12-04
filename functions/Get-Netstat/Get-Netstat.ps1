@@ -70,7 +70,6 @@
                 $hash = [ordered]@{
                     Category = $name
                     Key = $lineObject.Key
-                    Value = $null
                     Received = $lineObject.Received
                     Sent = $lineObject.Sent
                 }
