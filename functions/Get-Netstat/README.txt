@@ -1,0 +1,1 @@
+Query netstat and parse the data into object format.

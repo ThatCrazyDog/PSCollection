@@ -1,0 +1,1 @@
+Query and show the different colors available in the powershell console.
