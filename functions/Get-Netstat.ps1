@@ -1,14 +1,12 @@
-﻿function Get-Netstat ([switch]$all, [switch]$lookup, [switch]$statistics) {
+﻿function Get-Netstat ([switch]$all, [switch]$lookup, [switch]$statistics, [switch]$interfaceStatistics) {
+    $doubleValueSets = @("ICMPv4 Statistics","ICMPv6 Statistics")
+
     if($statistics) {
         $netstatStatistics = netstat -s
 
         $netstatStatistics = $netstatStatistics | Where-Object { $_ }
         $netstatStatistics = $netstatStatistics | Where-Object {$_ -notmatch "^\s+[a-z]+\s+[a-z]+$"}
-
-        $allSetNames = @("IPv4 Statistics","IPv6 Statistics","ICMPv4 Statistics","ICMPv6 Statistics","TCP Statistics for IPv4","TCP Statistics for IPv6","UDP Statistics for IPv4","UDP Statistics for IPv6")
-        $doubleValueSets = @("ICMPv4 Statistics","ICMPv6 Statistics")
-
-
+        
         $netstatStatistics = foreach ($line in $netstatStatistics) {
             if($line -match "^[a-z]+") {
                 "@"
@@ -20,7 +18,7 @@
         $netstatStatistics = $netstatStatistics | Select-Object -Skip 1
 
         $array = @()
-        $netstatStatistics = foreach ($line in $netstatStatistics) {
+        foreach ($line in $netstatStatistics) {
             if($line -match "^[a-z]+") {
                 $array += $line
             }
@@ -49,20 +47,33 @@
                     Received = $temp[1]
                     Sent = $temp[2]
                 }
-                New-Object -TypeName PSObject -Property $hash
-            } elseif($line -match "=") {
-                $temp = $line -split "="
+            }
+        }
+    } elseif($interfaceStatistics) {
+        $netstatStatistics = netstat -e
+
+        $netstatStatistics = $netstatStatistics | Where-Object { $_ }
+        $netstatStatistics = $netstatStatistics | Where-Object {$_ -notmatch "^\s+[a-z]+\s+[a-z]+$"}
+
+        $array = @()
+        foreach ($line in $netstatStatistics) {
+            if($line -match "^[a-z]+\s[a-z]+$") {
+                $name = $line
+            }
+            if($line -match "[0-9]+\s+[0-9]+$") {
+                $line = $line -replace "\s\s+", ";"
+                $lineObject = $line | ConvertFrom-Csv -Delimiter ";" -Header @("Key","Received","Sent")
                 $hash = [ordered]@{
                     Category = $name
-                    Key = $temp[0].Trim()
-                    Value = $temp[1]
-                    Received = $null
-                    Sent = $null
+                    Key = $lineObject.Key
+                    Value = $null
+                    Received = $lineObject.Received
+                    Sent = $lineObject.Sent
                 }
                 New-Object -TypeName PSObject -Property $hash
             }
         }
-    } else {
+    }else {
         $netstat = $(
             if($all -and $lookup) {
                 netstat -a -f -o | Select-Object -Skip 3
