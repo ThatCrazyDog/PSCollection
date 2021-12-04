@@ -47,6 +47,17 @@
                     Received = $temp[1]
                     Sent = $temp[2]
                 }
+                New-Object -TypeName PSObject -Property $hash
+            } elseif($line -match "=") {
+                $temp = $line -split "="
+                $hash = [ordered]@{
+                    Category = $name
+                    Key = $temp[0].Trim()
+                    Value = $temp[1]
+                    Received = $null
+                    Sent = $null
+                }
+                New-Object -TypeName PSObject -Property $hash
             }
         }
     } elseif($interfaceStatistics) {
@@ -73,7 +84,33 @@
                 New-Object -TypeName PSObject -Property $hash
             }
         }
-    } else {
+
+        foreach ($line in $array) {
+            if($line -match "^[a-z]") {
+                $name = $line
+            } elseif($line -match ";") {
+                $temp = $line -split ";"
+                $hash = [ordered]@{
+                    Category = $name
+                    Key = $temp[0].Trim()
+                    Value = $null
+                    Received = $temp[1]
+                    Sent = $temp[2]
+                }
+                New-Object -TypeName PSObject -Property $hash
+            } elseif($line -match "=") {
+                $temp = $line -split "="
+                $hash = [ordered]@{
+                    Category = $name
+                    Key = $temp[0].Trim()
+                    Value = $temp[1]
+                    Received = $null
+                    Sent = $null
+                }
+                New-Object -TypeName PSObject -Property $hash
+            }
+        }
+    }else {
         $netstat = $(
             if($all -and $lookup) {
                 netstat -a -f -o | Select-Object -Skip 3
