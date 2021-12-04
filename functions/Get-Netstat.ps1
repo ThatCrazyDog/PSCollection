@@ -73,7 +73,7 @@
                 New-Object -TypeName PSObject -Property $hash
             }
         }
-    }else {
+    } else {
         $netstat = $(
             if($all -and $lookup) {
                 netstat -a -f -o | Select-Object -Skip 3
