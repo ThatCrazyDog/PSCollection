@@ -1,14 +1,12 @@
-﻿function Get-Netstat ([switch]$all, [switch]$lookup, [switch]$statistics) {
+﻿function Get-Netstat ([switch]$all, [switch]$lookup, [switch]$statistics, [switch]$interfaceStatistics) {
+    $doubleValueSets = @("ICMPv4 Statistics","ICMPv6 Statistics")
+
     if($statistics) {
         $netstatStatistics = netstat -s
 
         $netstatStatistics = $netstatStatistics | Where-Object { $_ }
         $netstatStatistics = $netstatStatistics | Where-Object {$_ -notmatch "^\s+[a-z]+\s+[a-z]+$"}
-
-        $allSetNames = @("IPv4 Statistics","IPv6 Statistics","ICMPv4 Statistics","ICMPv6 Statistics","TCP Statistics for IPv4","TCP Statistics for IPv6","UDP Statistics for IPv4","UDP Statistics for IPv6")
-        $doubleValueSets = @("ICMPv4 Statistics","ICMPv6 Statistics")
-
-
+        
         $netstatStatistics = foreach ($line in $netstatStatistics) {
             if($line -match "^[a-z]+") {
                 "@"
@@ -18,22 +16,65 @@
             }
         }
         $netstatStatistics = $netstatStatistics | Select-Object -Skip 1
+        
+        foreach ($line in $netstatStatistics) {
+            if($line -match "^[a-z]+") {
+                $name = $line
+            }
+            if($line -match "[0-9]+\s+[0-9]+\s+$") {
+                #The -s parameter prefix all values with empty space, trim dat bush...
+                if($line -match "^\s+[a-z]+\s+[a-z]$") {
+                    #Supress this line it... (Received/Sent header for multivalue output in netstat -s)... Mess with my algorithm
+                } else {
+                    $line = $line.Trim()
+                    $line = $line -replace "\s\s+", ";"
+                    $lineObject = $line | ConvertFrom-Csv -Delimiter ";" -Header @("Key","Received","Sent")
+                    $hash = [ordered]@{
+                        Category = $name
+                        Key = $lineObject.Key
+                        Value = $null
+                        Received = $lineObject.Received
+                        Sent = $lineObject.Sent
+                    }
+                    New-Object -TypeName PSObject -Property $hash
+                }
+            } elseif($line -match "\s+=\s+") {
+                #The -s parameter prefix all values with empty space, trim dat bush...
+                $line = $line.Trim()
+                $line = $line -replace "\s\s+=\s", "="
+                $lineObject = $line | ConvertFrom-Csv -Delimiter "=" -Header @("Key","Value")
+                $hash = [ordered]@{
+                    Category = $name
+                    Key = $lineObject.Key
+                    Value = $lineObject.Value
+                    Received = $null
+                    Sent = $null
+                }
+                New-Object -TypeName PSObject -Property $hash
+            }
+        }
+    } elseif($interfaceStatistics) {
+        $netstatStatistics = netstat -e
+
+        $netstatStatistics = $netstatStatistics | Where-Object { $_ }
+        $netstatStatistics = $netstatStatistics | Where-Object {$_ -notmatch "^\s+[a-z]+\s+[a-z]+$"}
 
         $array = @()
-        $netstatStatistics = foreach ($line in $netstatStatistics) {
-            if($line -match "^[a-z]+") {
-                $array += $line
+        foreach ($line in $netstatStatistics) {
+            if($line -match "^[a-z]+\s[a-z]+$") {
+                $name = $line
             }
-            if($line -match "^\s+") {
-                if($line -match "\s+=\s+") {
-                    $line = $line -replace "\s+= ", "="
-                    $array += $line
-                } elseif($line -notmatch "=") {
-                    if($line -match "[0-9]\s+$") {
-                        $line = "$(($line -split "\s\s\s+" | Where-Object {$_}) -join ";")"
-                        $array += $line
-                    }
+            if($line -match "[0-9]+\s+[0-9]+$") {
+                $line = $line -replace "\s\s+", ";"
+                $lineObject = $line | ConvertFrom-Csv -Delimiter ";" -Header @("Key","Received","Sent")
+                $hash = [ordered]@{
+                    Category = $name
+                    Key = $lineObject.Key
+                    Value = $null
+                    Received = $lineObject.Received
+                    Sent = $lineObject.Sent
                 }
+                New-Object -TypeName PSObject -Property $hash
             }
         }
 
