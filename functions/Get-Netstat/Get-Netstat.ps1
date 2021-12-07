@@ -125,7 +125,8 @@
 
             #Remove the empty space in 'foreing address', so that the header isn't divided into two values.
             if($line -match "Foreign\sAddress") {
-                $line = $line -replace "Foreign Address","ForeignAddress"
+                #Change ForeignAddress to RemoteAddress, seems like a better name to me.
+                $line = $line -replace "Foreign Address","RemoteAddress"
             }
 
             $values = @()
