@@ -87,6 +87,7 @@ Param(
     ($reversedMask.IPAddressToString -split "\." | Sort-Object -Descending) -join "."
 }
 
+
 function Convert-SubnetMaskToPrefixLength {
 [CmdletBinding(DefaultParameterSetName='default')]
 Param(
@@ -99,6 +100,7 @@ Param(
     #Trim the end of string for any zeros, then count the bits/length and output it.
     $subnetMaskInBinary.TrimEnd('0').Length
 }
+
 
 function Get-IPv4NetworkID {
 [CmdletBinding(DefaultParameterSetName='default')]
@@ -129,6 +131,78 @@ Param(
             $result += (($mask -split "\.")[$octet]) -band (($ip -split "\.")[$octet])
         }
         $result -join "."
+    }
+}
+
+
+Function Get-IPv4Information {
+[CmdletBinding(DefaultParameterSetName='default')]
+Param(
+    [Parameter(Mandatory=$true,ParameterSetName='ByAlias')]
+    [ArgumentCompleter({
+        param($Command, $Parameter, $WordToComplete, $CommandAst, $FakeBoundParams)
+        (Get-NetAdapter | Where-Object {$_.InterfaceIndex -in (Get-NetIPAddress -AddressFamily IPv4).InterfaceIndex}).Name | foreach {"`'$_`'"}
+    })]
+    [String]$adapterName,
+
+    [Parameter(Mandatory=$true,ParameterSetName='ByDescription')]
+    [ArgumentCompleter({
+        param($Command, $Parameter, $WordToComplete, $CommandAst, $FakeBoundParams)
+        (Get-NetAdapter | Where-Object {$_.InterfaceIndex -in (Get-NetIPAddress -AddressFamily IPv4).InterfaceIndex}).InterfaceDescription | foreach {"`'$_`'"}
+    })]
+    [String]$adapterDescription,
+
+    [Parameter(Mandatory=$true,ParameterSetName='ByIndex')]
+    [ArgumentCompleter({
+        param($Command, $Parameter, $WordToComplete, $CommandAst, $FakeBoundParams)
+        (Get-NetAdapter | Where-Object {$_.InterfaceIndex -in (Get-NetIPAddress -AddressFamily IPv4).InterfaceIndex}).InterfaceIndex
+    })]
+    [int]$adapterIndex
+)
+    if($adapterName) {
+        Try {
+            $networkAdapter = Get-NetAdapter -Name $adapterName -ErrorAction Stop
+        } Catch {
+            # Failed to gather netadapter information
+            throw "Couldn't fetch information about any adapter named $adapterName"
+        }
+    } elseif($adapterDescription) {
+        Try {
+            $networkAdapter = Get-NetAdapter -InterfaceDescription $adapterDescription -ErrorAction Stop
+        } Catch {
+            # Failed to gather netadapter information
+            throw "Couldn't fetch information about any adapter with a description like: $adapterName"
+        }
+    } elseif($adapterIndex) {
+        Try {
+            $networkAdapter = Get-NetAdapter -InterfaceIndex $adapterIndex -ErrorAction Stop
+        } Catch {
+            # Failed to gather netadapter information
+            throw "Couldn't fetch information about any adapter with index: $adapterIndex"
+        }
+    } else {
+        # Get em' all...
+        $networkAdapter = Get-NetAdapter | Where-Object {$_.InterfaceIndex -in ((Get-NetIPAddress -AddressFamily IPv4).InterfaceIndex -le 32)}
+    }
+
+    foreach ($adapter in $networkAdapter) {
+        $networkAdapterInformation = $adapter | Get-NetIPAddress -AddressFamily IPv4
+        
+        #Multiply ip addresses can be returned, loop through them.
+        foreach ($ipInformation in $networkAdapterInformation) {
+            $networkIPAddress = $ipInformation.IPAddress
+            
+            $hash = [ordered]@{
+                Status = $adapter.Status
+                Name = $adapter.Name
+                Description = $adapter.InterfaceDescription
+                IPv4 = $networkIPAddress
+                SubnetMask = Convert-PrefixLengthToMask -prefixLength ($ipInformation.PrefixLength | Where-Object {$_.Prefixlength -le 32})
+                NetworkID = Get-IPv4NetworkID -value "$networkIPAddress/$($ipInformation.PrefixLength)" -format IP/Prefix
+            }
+            New-Object -TypeName PSObject -Property $hash
+        }
+        
     }
 }
 
